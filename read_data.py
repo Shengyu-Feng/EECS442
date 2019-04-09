@@ -65,7 +65,7 @@ def get_data(read_data = [1,1,0], size = 0):
 def write(img, bboxes):
     img_ = img.copy()
     for bbox in bboxes:
-        label = "{0}".format(id_to_class[bbox[0]])
+        label = "{0}".format(id_to_class[bbox[0].astype(int)])
         c1 = tuple((bbox[1:3]).astype(np.int32))
         c2 = tuple((bbox[3:5]).astype(np.int32))
         color = random.choice(colors)
@@ -84,15 +84,15 @@ class bboxData(Dataset):
     def __init__(self, size=1000):
         self.size = size
         label, train, test = get_data(size=size)
-        image = list(map(letterbox_image, train, [(416,416) for i in range(size)]))
+        image = list(map(cv2.resize, train, [(416,416) for i in range(size)]))
         self.image = torch.Tensor(image).permute(0,3,1,2)
         for i in range(size):
             h, w, c = train[i].shape
             label_ = np.zeros_like(label[i])
             label_[:,1] = label[i][:,1]*416/w
             label_[:,3] = label[i][:,3]*416/w
-            label_[:,2] = (label[i][:,2]-h/2)*416/w +416/2
-            label_[:,4] = (label[i][:,4]-h/2)*416/w +416/2
+            label_[:,2] = label[i][:,2]*416/h
+            label_[:,4] = label[i][:,4]*416/h
             label[i][:,1] = (label_[:,3] + label_[:,1])/832
             label[i][:,2] = (label_[:,4] + label_[:,2])/832
             label[i][:,3] = (label_[:,3] - label_[:,1])/416
@@ -112,23 +112,29 @@ class bboxData(Dataset):
 
 
 model = Darknet('cfg/3dyolo.cfg')
-train_data = bboxData(100)
-trainloader = DataLoader(train_data, batch_size= 10, shuffle=False)
+train_data = bboxData(10)
+trainloader = DataLoader(train_data, batch_size= 1, shuffle=False)
 
 
-# In[ ]:
+# In[5]:
 
 
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
 for epoch in range(20):
-    running_loss = 0
+    running_loss = []
     for i, (images, labels) in enumerate(trainloader):
         optimizer.zero_grad()
         loss = model(images, labels)
         loss.backward()
         optimizer.step()
-        running_loss += loss.item()
-    print(running_loss/100)
+        running_loss.append(loss.item())
+    print(running_loss[-1])
+
+
+# In[8]:
+
+
+plt.plot(range(10),running_loss)
 
 
 # In[ ]:
