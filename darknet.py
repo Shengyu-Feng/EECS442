@@ -315,12 +315,18 @@ class Darknet(nn.Module):
         
         loss = 0
         write = 0
+        device = "cpu"
+        if CUDA:
+            self.mse_loss = self.mse_loss.cuda()
+            self.bce_loss = self.bce_loss.cuda()
+            self.ce_loss = self.ce_loss.cuda()
+            device = "cuda"
         for i in range(len(modules)):        
             
             module_type = (modules[i]["type"])
             if module_type == "convolutional" or module_type == "upsample" or module_type == "maxpool":
-                
-                x = self.module_list[i](x)
+              
+                x = self.module_list[i].to(device)(x)
                 outputs[i] = x
 
                 
@@ -410,11 +416,8 @@ class Darknet(nn.Module):
                     pred_boxes[..., 1] = y.data + grid_y
                     pred_boxes[..., 2] = torch.exp(w.data) * anchor_w
                     pred_boxes[..., 3] = torch.exp(h.data) * anchor_h
-                    
-                    if CUDA:
-                        self.mse_loss = self.mse_loss.cuda()
-                        self.bce_loss = self.bce_loss.cuda()
-                        self.ce_loss = self.ce_loss.cuda()
+                    pred_boxes = pred_boxes.to(device)
+                   
 
                     nGT, nCorrect, mask, conf_mask, tx, ty, tw, th, tconf, tcls = build_targets(
                         pred_boxes=pred_boxes.cpu().data,
@@ -426,6 +429,7 @@ class Darknet(nn.Module):
                         num_classes = num_classes,
                         grid_size = grid_size,
                         ignore_thres=self.ignore_thres,
+                        device = device
                     )
 
                     # Handle masks

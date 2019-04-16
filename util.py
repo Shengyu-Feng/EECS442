@@ -385,19 +385,21 @@ def write_results_half(prediction, confidence, num_classes, nms = True, nms_conf
     return output
 
 def build_targets(
-    pred_boxes, pred_conf, pred_cls, target, anchors, num_anchors, num_classes, grid_size, ignore_thres):
+    pred_boxes, pred_conf, pred_cls, target, anchors, num_anchors, num_classes, grid_size, ignore_thres,device):
     nB = target.size(0)
     nA = num_anchors
     nC = num_classes
     nG = grid_size
-    mask = torch.zeros(nB, nA, nG, nG)
-    conf_mask = torch.ones(nB, nA, nG, nG)
-    tx = torch.zeros(nB, nA, nG, nG)
-    ty = torch.zeros(nB, nA, nG, nG)
-    tw = torch.zeros(nB, nA, nG, nG)
-    th = torch.zeros(nB, nA, nG, nG)
+    mask = torch.zeros(nB, nA, nG, nG,device=device)
+    conf_mask = torch.ones(nB, nA, nG, nG,device=device)
+    tx = torch.zeros(nB, nA, nG, nG,device=device)
+    ty = torch.zeros(nB, nA, nG, nG,device=device)
+    tw = torch.zeros(nB, nA, nG, nG,device=device)
+    th = torch.zeros(nB, nA, nG, nG,device=device)
     tconf = torch.ByteTensor(nB, nA, nG, nG).fill_(0)
+    tconf = tconf.to(device)
     tcls = torch.ByteTensor(nB, nA, nG, nG, nC).fill_(0)
+    tcls = tcls.to(device)
 
     nGT = 0
     nCorrect = 0
@@ -407,27 +409,31 @@ def build_targets(
                 continue
             nGT += 1
             # Convert to position relative to box
-            gx = target[b, t, 1] * nG
-            gy = target[b, t, 2] * nG
-            gw = target[b, t, 3] * nG
-            gh = target[b, t, 4] * nG
+            gx = target[b, t, 1].item() * nG
+            gy = target[b, t, 2].item() * nG
+            gw = target[b, t, 3].item() * nG
+            gh = target[b, t, 4].item() * nG
             # Get grid box indices
             gi = int(gx)
             gj = int(gy)
             # Get shape of gt box
             gt_box = torch.FloatTensor(np.array([0, 0, gw, gh])).unsqueeze(0)
+            gt_box = gt_box.to(device)
             # Get shape of anchor box
             anchor_shapes = torch.FloatTensor(np.concatenate((np.zeros((len(anchors), 2)), np.array(anchors)), 1))
+            anchor_shapes = anchor_shapes.to(device)
             # Calculate iou between gt and anchor shapes
             anch_ious = bbox_iou(gt_box, anchor_shapes)
             # Where the overlap is larger than threshold set mask to zero (ignore)
             conf_mask[b, anch_ious > ignore_thres, gj, gi] = 0
             # Find the best matching anchor box
-            best_n = np.argmax(anch_ious)
+            best_n = torch.argmax(anch_ious)
             # Get ground truth box
             gt_box = torch.FloatTensor(np.array([gx, gy, gw, gh])).unsqueeze(0)
             # Get the best prediction
+            gt_box = gt_box.to(device)
             pred_box = pred_boxes[b, best_n, gj, gi].unsqueeze(0)
+            pred_box = pred_box.to(device)
             # Masks
             mask[b, best_n, gj, gi] = 1
             conf_mask[b, best_n, gj, gi] = 1
