@@ -60,14 +60,14 @@ def arg_parse():
                         "Image / Directory to store detections to",
                         default = "det", type = str)
     parser.add_argument("--bs", dest = "bs", help = "Batch size", default = 1)
-    parser.add_argument("--confidence", dest = "confidence", help = "Object Confidence to filter predictions", default = 0.5)
+    parser.add_argument("--confidence", dest = "confidence", help = "Object Confidence to filter predictions", default = 0.56)
     parser.add_argument("--nms_thresh", dest = "nms_thresh", help = "NMS Threshhold", default = 0.4)
     parser.add_argument("--cfg", dest = 'cfgfile', help = 
                         "Config file",
-                        default = "cfg/yolov3.cfg", type = str)
+                        default = "cfg/3dyolo.cfg", type = str)
     parser.add_argument("--weights", dest = 'weightsfile', help = 
                         "weightsfile",
-                        default = "yolov3.weights", type = str)
+                        default = "model_3dyolo.pth", type = str)
     parser.add_argument("--reso", dest = 'reso', help = 
                         "Input resolution of the network. Increase to increase accuracy. Decrease to increase speed",
                         default = "416", type = str)
@@ -109,13 +109,15 @@ if __name__ ==  '__main__':
 
     CUDA = torch.cuda.is_available()
 
-    num_classes = 80
-    classes = load_classes('data/coco.names') 
+    num_classes = 9
+    classes = ['Car', 'Van', 'Truck', 'Pedestrian', 'Person_sitting','Cyclist','Tram','Misc','DontCare']
+    # classes = load_classes('data/coco.names') 
     
     #Set up the neural network
     print("Loading network.....")
     model = Darknet(args.cfgfile)
-    model.load_weights(args.weightsfile)
+    weights = torch.load(args.weightsfile, map_location='cpu')
+    model.load_state_dict(weights)
     print("Network successfully loaded")
 
     model.net_info["height"] = args.reso
@@ -183,6 +185,7 @@ if __name__ ==  '__main__':
     
     for batch in im_batches:
         #load the image 
+
         start = time.time()
         if CUDA:
             batch = batch.cuda()
@@ -194,7 +197,7 @@ if __name__ ==  '__main__':
         # B x (bbox cord x no. of anchors) x grid_w x grid_h --> B x bbox x (all the boxes) 
         # Put every proposed box as a row.
         with torch.no_grad():
-            prediction = model(Variable(batch), CUDA=CUDA)
+            prediction = model(batch, CUDA=CUDA)
 
 #        prediction = prediction[:,scale_indices]
 
@@ -239,6 +242,7 @@ if __name__ ==  '__main__':
         for im_num, image in enumerate(imlist[i*batch_size: min((i +  1)*batch_size, len(imlist))]):
             im_id = i*batch_size + im_num
             objs = [classes[int(x[-1])] for x in output if int(x[0]) == im_id]
+            print("objs.shape:", len(objs))
             print("{0:20s} predicted in {1:6.3f} seconds".format(image.split("/")[-1], (end - start)/batch_size))
             print("{0:20s} {1:s}".format("Objects Detected:", " ".join(objs)))
             print("----------------------------------------------------------")
